@@ -572,7 +572,17 @@ class MainWindow:
         self.root.quit()
         logger.info("👋 Dynamic Messe Stand V4 завершено")
         sys.exit(0)
-
+        
+    def make_glass_card(self, parent, padding=12):
+    """Erstellt glass-card im Bertrandt Stil"""
+    colors = theme_manager.get_colors()
+    
+    outer = ttk.Frame(parent, style="TFrame")
+    inner = ttk.Frame(outer, style="Glass.TFrame", padding=padding)
+    inner.place(relx=0, rely=0, relwidth=1, relheight=1)
+    
+    return outer, inner
+    
     def run(self):
         """Запускає GUI головний цикл"""
         try:
