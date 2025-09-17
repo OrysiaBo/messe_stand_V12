@@ -363,66 +363,36 @@ class CreatorTab:
             self.update_status("❌ Speichern fehlgeschlagen")
     
     def save_current_slide_content(self):
-        """REPARIERT: Speichert aktuellen Slide-Inhalt VOLLSTÄNDIG"""
-        try:
-            if not hasattr(self, 'current_slide') or not self.current_slide:
-                # Fallback: Slide aus content_manager laden
-                self.current_slide = content_manager.get_slide(self.current_edit_slide)
-                if not self.current_slide:
-                    logger.warning(f"Slide {self.current_edit_slide} nicht gefunden - erstelle neuen")
-                    content_manager.create_slide(self.current_edit_slide, f"Neue Slide {self.current_edit_slide}", "")
-                    self.current_slide = content_manager.get_slide(self.current_edit_slide)
+    """VEREINFACHTE Speicherfunktion"""
+    try:
+        # Einfache Text-Extraktion
+        title_text = ""
+        content_text = ""
+        
+        if self.edit_mode and hasattr(self, 'edit_widgets'):
+            if 'title' in self.edit_widgets:
+                title_text = self.edit_widgets['title'].get('1.0', 'end-1c')
+            if 'content' in self.edit_widgets:  
+                content_text = self.edit_widgets['content'].get('1.0', 'end-1c')
+        
+        if not title_text:
+            title_text = f"Folie {self.current_edit_slide}"
             
-            # 1. Text-Inhalte sammeln
-            title_text = ""
-            content_text = ""
-            canvas_elements = []
-            
-            if self.edit_mode and hasattr(self, 'edit_widgets'):
-                # Bearbeitungs-Modus: Daten aus Edit-Widgets
-                if 'title' in self.edit_widgets:
-                    title_text = self.edit_widgets['title'].get('1.0', 'end-1c')
-                if 'content' in self.edit_widgets:
-                    content_text = self.edit_widgets['content'].get('1.0', 'end-1c')
-            else:
-                # Canvas-Modus: Daten aus Canvas-Widgets
-                title_text, content_text, canvas_elements = self.extract_canvas_content()
-            
-            # 2. Standard-Titel falls leer
-            if not title_text:
-                title_text = f"Demo-Folie {self.current_edit_slide}"
-            
-            # 3. Canvas-Elemente RICHTIG speichern
-            extra_data = {}
-            if canvas_elements:
-                extra_data['canvas_elements'] = canvas_elements
-            
-            # 4. KRITISCH: Content-Manager verwenden
-            success = content_manager.update_slide_content(
-                self.current_edit_slide,
-                title_text,
-                content_text,
-                extra_data
-            )
-            
-            # 5. Erfolg-Feedback
-            if success:
-                self.current_slide = content_manager.get_slide(self.current_edit_slide)
-                logger.info(f"✅ Slide {self.current_edit_slide} erfolgreich gespeichert: '{title_text[:30]}...'")
-                
-                if self.manual_save:
-                    self.show_save_success()
-                
-                return True
-            else:
-                logger.error(f"❌ Slide {self.current_edit_slide} konnte nicht gespeichert werden")
-                return False
-                
-        except Exception as e:
-            logger.error(f"KRITISCHER FEHLER beim Speichern von Slide {self.current_edit_slide}: {e}")
-            import traceback
-            traceback.print_exc()
+        # DIREKT zum content_manager speichern
+        success = content_manager.update_slide_content(
+            self.current_edit_slide, title_text, content_text, {}
+        )
+        
+        if success:
+            logger.info(f"✅ Slide {self.current_edit_slide} gespeichert")
+            return True
+        else:
+            logger.error(f"❌ Speichern fehlgeschlagen")
             return False
+            
+    except Exception as e:
+        logger.error(f"Speicherfehler: {e}")
+        return False
     
     def extract_canvas_content(self):
         """REPARIERT: Extrahiert Inhalte aus Canvas-Widgets"""
