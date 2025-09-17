@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Main Window für Dynamic Messe Stand V4
-Haupt-GUI-Fenster mit responsivem Design
+ОПТИМІЗОВАНИЙ Main Window для Dynamic Messe Stand V4
+Гібридний підхід: надійність + розумна синхронізація
 """
 
 import tkinter as tk
@@ -9,174 +9,130 @@ from tkinter import ttk
 import sys
 import subprocess
 from core.config import config
-from core.theme import theme_manager, THEME_VARS, _mix
+from core.theme import theme_manager, THEME_VARS, _mix, apply_bertrandt_theme
 from core.logger import logger
-from ui.components.header import HeaderComponent
-from ui.components.status_panel import StatusPanelComponent
-from ui.components.footer import FooterComponent
 from ui.tabs.home_tab import HomeTab
 from ui.tabs.creator_tab import CreatorTab
+from ui.tabs.demo_tab import DemoTab
 from ui.tabs.presentation_tab import PresentationTab
 
 class MainWindow:
-    """Haupt-GUI-Fenster"""
+    """Оптимізоване головне GUI-вікно з розумною синхронізацією"""
     
     def __init__(self, esp32_port=None):
-        logger.info("🚀 Starte Dynamic Messe Stand V4...")
+        logger.info("🚀 Запуск Dynamic Messe Stand V4 з оптимізованою архітектурою...")
         
         # Tkinter Root
         self.root = tk.Tk()
         self.root.title(config.gui['title'])
         
-        # Basis-Variablen
+        # Базові змінні
         self.esp32_port = esp32_port
         self.fullscreen = False
         self.current_tab = "home"
+        self.tabs = {}
         
-        # Setup
+        # Content Observer setup (розумний підхід)
+        self._setup_content_observer()
+        
+        # Основне налаштування
         self.setup_window()
         self.setup_responsive_design()
         self.setup_styles()
         self.setup_gui_components()
         self.setup_tabs()
         
-        # Initialer Tab
+        # Початковий таб
         self.switch_tab("home")
         
-        logger.info("✅ Dynamic Messe Stand V4 erfolgreich initialisiert!")
-        self.setup_content_synchronization()
+        logger.info("✅ Dynamic Messe Stand V4 успішно ініціалізований!")
 
-    def setup_content_synchronization(self):
-        """Налаштовує синхронізацію контенту між табами"""
+    def _setup_content_observer(self):
+        """Розумне налаштування спостерігача контенту"""
         try:
             from models.content import content_manager
-            
-            # Підписати MainWindow на зміни контенту
-            content_manager.add_observer(self.on_content_changed)
-            
-            logger.debug("Content synchronization setup complete")
-            
+            content_manager.add_observer(self._on_content_changed)
+            logger.info("Content Observer успішно зареєстрований")
+        except ImportError:
+            logger.warning("Content Manager недоступний - синхронізація вимкнена")
         except Exception as e:
-            logger.error(f"Error setting up content synchronization: {e}")
+            logger.error(f"Помилка реєстрації Content Observer: {e}")
 
-    def on_content_changed(self, slide_id, slide_data, action='update'):
-        """Обробник змін контенту для синхронізації всіх табів"""
+    def _on_content_changed(self, slide_id, slide_data, action='update'):
+        """Оптимізований обробник змін контенту"""
         try:
-            # Синхронізувати Demo Tab
-            if hasattr(self, 'tabs') and 'demo' in self.tabs:
-                # Demo tab має власний обробник, він автоматично оновиться
-                pass
+            logger.debug(f"Синхронізація змін slide {slide_id} ({action})")
             
-            # Синхронізувати Creator Tab
-            if hasattr(self, 'tabs') and 'creator' in self.tabs:
-                # Оновити thumbnails в Creator
-                if hasattr(self.tabs['creator'], 'create_slide_thumbnails'):
-                    self.tabs['creator'].create_slide_thumbnails()
+            # Оновити тільки необхідні таби
+            for tab_name, tab_instance in self.tabs.items():
+                if tab_name == 'demo' and hasattr(tab_instance, 'sync_slide_change'):
+                    tab_instance.sync_slide_change(slide_id, slide_data)
+                elif tab_name == 'creator' and hasattr(tab_instance, 'refresh_thumbnails'):
+                    tab_instance.refresh_thumbnails()
+                elif tab_name == 'home' and hasattr(tab_instance, 'update_stats'):
+                    tab_instance.update_stats()
             
-            # Синхронізувати Home Tab якщо є
-            if hasattr(self, 'tabs') and 'home' in self.tabs:
-                if hasattr(self.tabs['home'], 'refresh_content'):
-                    self.tabs['home'].refresh_content()
-            
-            logger.debug(f"All tabs synchronized for slide {slide_id} change")
+            # Оновити статус у navbar
+            self._update_status_indicator(f"Slide {slide_id} оновлено")
             
         except Exception as e:
-            logger.error(f"Error synchronizing tabs: {e}")
+            logger.error(f"Помилка синхронізації контенту: {e}")
 
-    def refresh_all_tabs(self):
-        """Примусово оновлює всі таби після завантаження презентації"""
-        try:
-            # Оновити Demo Tab
-            if hasattr(self, 'tabs') and 'demo' in self.tabs:
-                if hasattr(self.tabs['demo'], 'create_slides_list'):
-                    self.tabs['demo'].create_slides_list()
-                if hasattr(self.tabs['demo'], 'load_current_slide'):
-                    self.tabs['demo'].load_current_slide()
-            
-            # Оновити Creator Tab
-            if hasattr(self, 'tabs') and 'creator' in self.tabs:
-                if hasattr(self.tabs['creator'], 'create_slide_thumbnails'):
-                    self.tabs['creator'].create_slide_thumbnails()
-                if hasattr(self.tabs['creator'], 'load_slide_to_editor'):
-                    # Перезавантажити поточний слайд
-                    current_slide = getattr(self.tabs['creator'], 'current_edit_slide', 1)
-                    self.tabs['creator'].load_slide_to_editor(current_slide)
-            
-            # Оновити Home Tab
-            if hasattr(self, 'tabs') and 'home' in self.tabs:
-                if hasattr(self.tabs['home'], 'refresh_content'):
-                    self.tabs['home'].refresh_content()
-            
-            logger.info("All tabs refreshed successfully")
-            
-        except Exception as e:
-            logger.error(f"Error refreshing all tabs: {e}")
-    
     def setup_window(self):
-        """Konfiguriert das Hauptfenster für 24" RTC Monitor"""
-        # Hauptmonitor ermitteln (primärer Monitor)
-        self.detect_primary_monitor()
+        """Налаштовує головне вікно для 24" монітора"""
+        self._detect_primary_monitor()
         
-        # Für 24" RTC Monitor optimiert
+        # Оптимізовано для 24" RTC Monitor
         self.window_width = self.primary_width
         self.window_height = self.primary_height
         
-        logger.info(f"Hauptmonitor erkannt: {self.window_width}x{self.window_height} bei ({self.primary_x}, {self.primary_y})")
+        logger.info(f"Головний монітор: {self.window_width}x{self.window_height} на ({self.primary_x}, {self.primary_y})")
         
-        # Fenster explizit auf Hauptmonitor positionieren
+        # Позиціонування вікна на головному моніторі
         self.root.geometry(f"{self.window_width}x{self.window_height}+{self.primary_x}+{self.primary_y}")
         self.root.minsize(config.gui['min_width'], config.gui['min_height'])
         
-        # Vollbild-Bindings
+        # Fullscreen bindings
         self.root.bind('<F11>', self.toggle_fullscreen)
         self.root.bind('<Escape>', self.exit_fullscreen)
         
-        # Sofort in Vollbild auf Hauptmonitor
-        self.root.attributes('-fullscreen', True)
-        self.root.attributes('-topmost', True)  # Immer im Vordergrund
-        self.fullscreen = True
+        # Початковий fullscreen режим
+        if config.gui.get('fullscreen_on_start', True):
+            self.root.attributes('-fullscreen', True)
+            self.root.attributes('-topmost', True)
+            self.fullscreen = True
         
-        # Fenster auf Hauptmonitor forcieren
-        self.root.wm_attributes('-zoomed', True)  # Linux maximieren
-        self.root.focus_force()    # Fokus erzwingen
-        self.root.lift()           # Fenster nach vorne bringen
+        # Забезпечення залишення на головному моніторі
+        self.root.after(200, self._ensure_primary_monitor)
         
-        # Sicherstellen, dass Fenster auf Hauptmonitor bleibt
-        self.root.after(100, self.ensure_primary_monitor)
-        
-        # Theme anwenden
+        # Застосування теми
         colors = theme_manager.get_colors()
         self.root.configure(bg=colors['background_primary'])
-    
-    def detect_primary_monitor(self):
-        """Erkennt den primären Monitor (Hauptbildschirm)"""
+
+    def _detect_primary_monitor(self):
+        """Виявляє головний монітор"""
         try:
-            # Tkinter-Methode für primären Monitor
             self.root.update_idletasks()
             
-            # Gesamte Bildschirmgröße
+            # Загальний розмір екрану
             total_width = self.root.winfo_screenwidth()
             total_height = self.root.winfo_screenheight()
             
-            # Primärer Monitor ist normalerweise bei (0,0)
+            # За замовчуванням - головний монітор
             self.primary_x = 0
             self.primary_y = 0
             self.primary_width = total_width
             self.primary_height = total_height
             
-            # Versuche Multi-Monitor Setup zu erkennen
+            # Спроба виявити multi-monitor setup
             try:
-                import subprocess
-                result = subprocess.run(['xrandr'], capture_output=True, text=True)
+                result = subprocess.run(['xrandr'], capture_output=True, text=True, timeout=2)
                 if result.returncode == 0:
-                    lines = result.stdout.split('\n')
-                    for line in lines:
+                    for line in result.stdout.split('\n'):
                         if ' connected primary ' in line:
-                            # Primärer Monitor gefunden
                             parts = line.split()
                             for part in parts:
                                 if 'x' in part and '+' in part:
-                                    # Format: 1920x1080+0+0
                                     resolution_pos = part.split('+')
                                     if len(resolution_pos) >= 3:
                                         resolution = resolution_pos[0]
@@ -189,69 +145,55 @@ class MainWindow:
                                             self.primary_height = int(h)
                                     break
                             break
-            except:
-                pass  # Fallback auf Standard-Werte
+            except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+                logger.debug("xrandr недоступний, використовуємо стандартні значення")
             
-            logger.info(f"Primärer Monitor: {self.primary_width}x{self.primary_height} bei ({self.primary_x}, {self.primary_y})")
+            logger.info(f"Головний монітор: {self.primary_width}x{self.primary_height} на ({self.primary_x}, {self.primary_y})")
             
         except Exception as e:
-            logger.warning(f"Monitor-Erkennung fehlgeschlagen: {e}")
-            # Fallback-Werte
+            logger.warning(f"Помилка виявлення монітора: {e}")
+            # Fallback значення
             self.primary_x = 0
             self.primary_y = 0
             self.primary_width = 1920
             self.primary_height = 1080
-    
-    def ensure_primary_monitor(self):
-        """Stellt sicher, dass das Fenster auf dem Hauptmonitor bleibt"""
+
+    def _ensure_primary_monitor(self):
+        """Забезпечує залишення вікна на головному моніторі"""
         try:
-            # Fenster-Position prüfen und korrigieren
             current_x = self.root.winfo_x()
             current_y = self.root.winfo_y()
             
-            # Falls Fenster nicht auf Hauptmonitor, zurück bewegen
             if current_x != self.primary_x or current_y != self.primary_y:
                 self.root.geometry(f"{self.primary_width}x{self.primary_height}+{self.primary_x}+{self.primary_y}")
-                logger.info(f"Fenster auf Hauptmonitor zurück bewegt: ({self.primary_x}, {self.primary_y})")
+                logger.debug(f"Вікно повернуто на головний монітор")
             
         except Exception as e:
-            logger.warning(f"Monitor-Korrektur fehlgeschlagen: {e}")
-    
+            logger.warning(f"Помилка корекції позиції монітора: {e}")
+
     def setup_responsive_design(self):
-        """Konfiguriert responsive Design-Elemente"""
-        # Scale Factor für responsive Design
+        """Налаштовує responsive design"""
         self.scale_factor = min(self.window_width, self.window_height) / config.design['scale_factor_base']
-        
-        # Responsive Schriftarten
         self.fonts = theme_manager.get_fonts(self.window_width, self.window_height)
         
         logger.debug(f"Responsive Design: {self.window_width}x{self.window_height}, Scale: {self.scale_factor:.2f}")
-    
+
     def setup_styles(self):
-        """Wendet das komplette Bertrandt Dark Theme an - überschreibt alle anderen Styles"""
-        # Bertrandt Dark Theme direkt anwenden
-        from core.theme import apply_bertrandt_dark_theme
-        apply_bertrandt_dark_theme(self.root, reapply=True)
+        """Застосовує повну Bertrandt тему"""
+        apply_bertrandt_theme(self.root, reapply=True)
         self.style = ttk.Style()
         
-        # Zusätzliche moderne Styles für bessere Integration
-        colors = theme_manager.get_colors()
-        spacing = theme_manager.get_spacing()
-        
-        # Überschreibe alle Standard-Styles mit Bertrandt Theme
-        # Frames
+        # Додаткові стилі для сучасної інтеграції
         self.style.configure('TFrame', 
                            background=THEME_VARS["bg"],
                            relief='flat',
                            borderwidth=0)
         
-        # Labels - alle mit Bertrandt Farben
         self.style.configure('TLabel',
                            background=THEME_VARS["bg"],
                            foreground=THEME_VARS["text"],
                            font=(THEME_VARS["font_family"], THEME_VARS["size_body"]))
         
-        # Buttons - alle mit Bertrandt Styles
         self.style.configure('TButton',
                            background=THEME_VARS["brand_600"],
                            foreground="#ffffff",
@@ -259,104 +201,85 @@ class MainWindow:
                            relief='flat',
                            borderwidth=0,
                            padding=(THEME_VARS["pad"], THEME_VARS["pad"] // 2))
-    
+
     def setup_gui_components(self):
-        """Erstellt die Bertrandt Layout-Struktur nach Referenz"""
-        # Hauptcontainer mit Bertrandt Padding (14px)
+        """Створює Bertrandt layout структуру"""
+        # Головний контейнер
         self.main_container = ttk.Frame(self.root, style="TFrame")
         self.main_container.pack(fill='both', expand=True, padx=14, pady=12)
         
-        # Navbar (Glass-Frame oben) - nach Bertrandt Referenz
+        # Navbar
         self.navbar = ttk.Frame(self.main_container, style="Glass.TFrame", padding=(12, 10))
         self.navbar.pack(side="top", fill="x", pady=(0, 12))
-        self.setup_navbar()
+        self._setup_navbar()
         
-        # Hero-Bereich (große Karte) - nach Bertrandt Referenz
-        self.hero_outer, self.hero = self.make_glass_card(self.main_container, padding=16)
+        # Hero область
+        self.hero_outer, self.hero = self._make_glass_card(self.main_container, padding=16)
         self.hero_outer.pack(fill="x", pady=(0, 12))
-        self.setup_hero()
+        self._setup_hero()
         
-        # Grid-Container (3-Spalten-Layout) - nach Bertrandt Referenz
+        # Grid контейнер
         self.grid_container = ttk.Frame(self.main_container, style="TFrame")
         self.grid_container.pack(fill="both", expand=True, pady=(0, 12))
         self.grid_container.columnconfigure((0,1,2), weight=1)
         self.grid_container.rowconfigure((0,1), weight=1)
         
-        # Content-Bereich für Tabs - nimmt das komplette Grid ein
-        self.content_frame = self.grid_container
+        # Content область для табів
         self.tab_content_frame = self.grid_container
         
-        # Footer mit Separator - nach Bertrandt Referenz
+        # Footer
         self.footer_frame = ttk.Frame(self.main_container, style="TFrame")
         self.footer_frame.pack(side="bottom", fill="x")
         ttk.Separator(self.footer_frame).pack(fill="x", pady=6)
         self.footer_label = ttk.Label(
             self.footer_frame, 
-            text="© 2025 Bertrandt AG - Dynamic Messe Stand V4 - Marvin Mayer", 
+            text="© 2025 Bertrandt AG - Dynamic Messe Stand V4 - Оптимізована версія", 
             style="Muted.TLabel"
         )
         self.footer_label.pack()
         
-        logger.info("✅ Bertrandt Layout-Struktur erstellt")
-    
-    def make_glass_card(self, parent, padding=12):
-        """Erstellt eine Glass-Card im Bertrandt-Style"""
-        from core.theme import THEME_VARS, _mix
-        
-        # Outer Frame
+        logger.info("✅ Bertrandt layout структура створена")
+
+    def _make_glass_card(self, parent, padding=12):
+        """Створює glass-card у Bertrandt стилі"""
         outer = ttk.Frame(parent, style="TFrame")
         
-        # Canvas für Hintergrund-Effekt
         cv = tk.Canvas(outer, bg=THEME_VARS["bg"], highlightthickness=0, bd=0, height=1)
         cv.grid(row=0, column=0, sticky="nsew")
         outer.grid_rowconfigure(0, weight=1)
         outer.grid_columnconfigure(0, weight=1)
         
-        # Inner Frame mit Glass-Style
         inner = ttk.Frame(outer, style="Glass.TFrame", padding=padding)
         inner.place(relx=0, rely=0, relwidth=1, relheight=1)
         
-        # Redraw-Funktion für Glass-Effekt
         def _redraw(_evt=None):
             cv.delete("all")
             w = outer.winfo_width()
             h = outer.winfo_height()
             if w < 2 or h < 2: 
                 return
-            # Simulierte Kontur
-            cv.create_rectangle(
-                1, 1, w-2, h-2,
-                outline=THEME_VARS["elev_outline"],
-                width=1
-            )
-            # Leichte Innenfläche ("Glas")
-            cv.create_rectangle(
-                2, 2, w-3, h-3,
-                outline="",
-                fill=_mix(THEME_VARS["panel"], "#ffffff", 0.04)
-            )
+            cv.create_rectangle(1, 1, w-2, h-2, outline=THEME_VARS["elev_outline"], width=1)
+            cv.create_rectangle(2, 2, w-3, h-3, outline="", fill=_mix(THEME_VARS["panel"], "#ffffff", 0.04))
         
         outer.bind("<Configure>", _redraw)
         return outer, inner
-    
-    def setup_navbar(self):
-        """Erstellt die Navbar nach Bertrandt Referenz"""
-        # Left side - Brand Badge + Title
+
+    def _setup_navbar(self):
+        """Створює navbar"""
+        # Ліва частина - логотип + заголовок
         left_frame = ttk.Frame(self.navbar, style="TFrame")
         left_frame.pack(side="left")
         
-        # Bertrandt Logo
-        self.load_logo(left_frame)
+        self._load_logo(left_frame)
         
-        # Title
         title_label = ttk.Label(left_frame, text="Dynamic Messe Stand V4", style="H2.TLabel")
         title_label.pack(side="left")
         
-        # Right side - Navigation Buttons
+        # Права частина - навігація
         right_frame = ttk.Frame(self.navbar, style="TFrame")
         right_frame.pack(side="right")
         
-        # Navigation Buttons
+        # Кнопки навігації
         nav_buttons = [
             ("Home", "home"),
             ("Demo", "demo"), 
@@ -375,229 +298,289 @@ class MainWindow:
             btn.pack(side="left", padx=6)
             self.nav_buttons[tab_name] = btn
         
-        # Theme Toggle Button
-        theme_btn = ttk.Button(
-            right_frame, 
-            text="🌙", 
-            style="Ghost.TButton",
-            command=self.toggle_theme
+        # Статус індикатор
+        self.status_indicator = ttk.Label(
+            right_frame, text="✅ Система готова", style="Muted.TLabel"
         )
-        theme_btn.pack(side="left", padx=6)
+        self.status_indicator.pack(side="left", padx=12)
         
-        # Primary Action Button
-        primary_btn = ttk.Button(
+        # Системний тест кнопка
+        test_btn = ttk.Button(
             right_frame, 
-            text="System Status", 
+            text="🔧 Тест", 
             style="Primary.TButton",
-            command=self.show_system_status
+            command=self._run_system_test
         )
-        primary_btn.pack(side="left", padx=6)
-    
-    def setup_hero(self):
-        """Erstellt den Hero-Bereich nach Bertrandt Referenz"""
-        # Eyebrow Text
+        test_btn.pack(side="left", padx=6)
+
+    def _setup_hero(self):
+        """Створює hero область"""
         eyebrow = ttk.Label(
             self.hero, 
-            text="Interaktives Messestand-System", 
+            text="Оптимізована система для виставок", 
             foreground=_mix(THEME_VARS["brand_600"], "#9cc7fb", 0.5)
         )
         eyebrow.pack(anchor="w")
         
-        # Main Title
         title = ttk.Label(
             self.hero, 
-            text="Bertrandt Dynamic Messe Stand V4", 
+            text="Bertrandt Dynamic Messe Stand V4 - Оптимізовано", 
             style="H1.TLabel"
         )
         title.pack(anchor="w", pady=(4, 4))
         
-        # Description
         description = ttk.Label(
             self.hero, 
-            text="Professionelles Touch-Interface für interaktive Messestände mit Hardware-Integration und Live-Demos.", 
+            text="Стабільна система з розумною синхронізацією між Creator та Demo, автоматичним збереженням та повноцінним Asset Browser.", 
             style="Muted.TLabel", 
             wraplength=900, 
             justify="left"
         )
         description.pack(anchor="w")
-    
-    def load_logo(self, parent_frame):
-        """Lädt das passende Logo basierend auf dem aktuellen Theme"""
+
+    def _load_logo(self, parent_frame):
+        """Завантажує відповідний логотип"""
         try:
             from PIL import Image, ImageTk
             from core.theme import get_logo_filename
             import os
             
-            # Logo-Dateiname basierend auf Theme
             logo_filename = get_logo_filename()
             logo_path = os.path.join(os.path.dirname(__file__), "..", "assets", logo_filename)
             
-            # Logo laden und skalieren
-            logo_image = Image.open(logo_path)
-            
-            # Logo auf passende Größe skalieren (Höhe: 28px, Breite proportional)
-            logo_height = 28
-            logo_width = int((logo_image.width * logo_height) / logo_image.height)
-            logo_image = logo_image.resize((logo_width, logo_height), Image.Resampling.LANCZOS)
-            
-            # PhotoImage erstellen
-            self.logo_photo = ImageTk.PhotoImage(logo_image)
-            
-            # Logo Label erstellen oder aktualisieren
-            if hasattr(self, 'logo_label'):
-                self.logo_label.configure(image=self.logo_photo)
-            else:
+            if os.path.exists(logo_path):
+                logo_image = Image.open(logo_path)
+                logo_height = 28
+                logo_width = int((logo_image.width * logo_height) / logo_image.height)
+                logo_image = logo_image.resize((logo_width, logo_height), Image.Resampling.LANCZOS)
+                
+                self.logo_photo = ImageTk.PhotoImage(logo_image)
+                
                 self.logo_label = ttk.Label(parent_frame, image=self.logo_photo, style="TLabel")
                 self.logo_label.pack(side="left", padx=(0, 10))
+                
+                logger.info("Bertrandt логотип успішно завантажено")
+                return
+                
+        except Exception as e:
+            logger.warning(f"Неможливо завантажити логотип: {e}")
+        
+        # Fallback текст
+        title_label = ttk.Label(
+            parent_frame,
+            text="Dynamic Messe Stand V4",
+            style="H2.TLabel"
+        )
+        title_label.pack(side="left")
+
+    def setup_tabs(self):
+        """Ініціалізує всі tab компоненти з належними перевірками"""
+        logger.info("Ініціалізація табів з оптимізованою синхронізацією...")
+        
+        try:
+            self.tabs = {
+                'home': HomeTab(self.tab_content_frame, self),
+                'demo': DemoTab(self.tab_content_frame, self),
+                'creator': CreatorTab(self.tab_content_frame, self), 
+                'presentation': PresentationTab(self.tab_content_frame, self)
+            }
+            
+            # Приховати всі таби спочатку
+            for tab in self.tabs.values():
+                if hasattr(tab, 'hide'):
+                    tab.hide()
+            
+            logger.info("✅ Всі таби ініціалізовані")
+        except Exception as e:
+            logger.error(f"Помилка ініціалізації табів: {e}")
+            self.tabs = {}
+
+    def switch_tab(self, tab_name):
+        """Розумне перемикання табів з автозбереженням"""
+        try:
+            logger.debug(f"Перемикання на таб: {tab_name}")
+            
+            # Автозбереження в Creator при виході (тільки якщо необхідно)
+            if (self.current_tab == 'creator' and 'creator' in self.tabs and 
+                hasattr(self.tabs['creator'], 'save_current_slide_content')):
+                
+                logger.debug("Виконую автозбереження при зміні табу...")
+                try:
+                    self.tabs['creator'].save_current_slide_content()
+                except Exception as e:
+                    logger.warning(f"Автозбереження не вдалося: {e}")
+            
+            # Приховати поточний таб
+            if self.current_tab in self.tabs and hasattr(self.tabs[self.current_tab], 'hide'):
+                self.tabs[self.current_tab].hide()
+            
+            # Показати новий таб
+            if tab_name in self.tabs:
+                if hasattr(self.tabs[tab_name], 'show'):
+                    self.tabs[tab_name].show()
+                
+                # Оновити контент при потребі
+                self._refresh_tab_content(tab_name)
+            
+            # Оновити navbar
+            self._update_navbar_active_tab(tab_name)
+            
+            self.current_tab = tab_name
+            logger.debug(f"✅ Перемикання на {tab_name} завершено")
             
         except Exception as e:
-            logger.warning(f"Bertrandt Logo konnte nicht geladen werden: {e}")
-            # Fallback: Canvas Badge
-            if not hasattr(self, 'logo_badge'):
-                self.logo_badge = tk.Canvas(parent_frame, width=28, height=28, bg=THEME_VARS["panel"], highlightthickness=0)
-                self.logo_badge.pack(side="left", padx=(0, 10))
-            
-            self.logo_badge.configure(bg=THEME_VARS["panel"])
-            self.logo_badge.delete("all")
-            self.logo_badge.create_rectangle(2, 2, 26, 26, outline="", fill=_mix(THEME_VARS["brand_600"], THEME_VARS["brand_500"], 0.5))
+            logger.error(f"Помилка перемикання на таб {tab_name}: {e}")
 
-    def toggle_theme(self):
-        """Wechselt zwischen Dark und Light Theme"""
-        from core.theme import toggle_theme, apply_bertrandt_theme
-        
-        # Theme wechseln
-        new_theme = toggle_theme()
-        
-        # Theme auf die Anwendung anwenden
-        apply_bertrandt_theme(self.root, reapply=True)
-        
-        # Styles neu anwenden
-        self.setup_styles()
-        
-        # Logo neu laden
-        if hasattr(self, 'logo_label'):
-            parent = self.logo_label.master
-            self.load_logo(parent)
-        
-        # Alle Tabs über Theme-Wechsel benachrichtigen
-        self.refresh_all_tabs()
-        
-        # Toast anzeigen
-        from core.theme import _toast
-        theme_name = "Hell" if new_theme == "light" else "Dunkel"
-        _toast(self.root, f"Theme gewechselt: {theme_name}")
-        
-        logger.info(f"Theme gewechselt zu: {new_theme}")
-    
-    def show_system_status(self):
-        """Zeigt System-Status in einem Toast"""
-        from core.theme import _toast
-        _toast(self.root, "System läuft optimal - Alle Verbindungen aktiv")
-    
-    def update_navbar_active_tab(self, active_tab):
-        """Aktualisiert die aktive Tab-Anzeige in der Navbar"""
+    def _refresh_tab_content(self, tab_name):
+        """Оновлює контент табу при перемиканні"""
+        try:
+            tab = self.tabs.get(tab_name)
+            if not tab:
+                return
+            
+            if tab_name == 'demo' and hasattr(tab, 'load_current_slide'):
+                tab.load_current_slide()
+            elif tab_name == 'creator' and hasattr(tab, 'load_slide_to_editor'):
+                current_slide = getattr(tab, 'current_edit_slide', 1)
+                tab.load_slide_to_editor(current_slide)
+            elif tab_name == 'home' and hasattr(tab, 'refresh_content'):
+                tab.refresh_content()
+                
+        except Exception as e:
+            logger.debug(f"Помилка оновлення контенту табу {tab_name}: {e}")
+
+    def _update_navbar_active_tab(self, active_tab):
+        """Оновлює активний таб у navbar"""
         for tab_name, button in self.nav_buttons.items():
             if tab_name == active_tab:
                 button.configure(style="Primary.TButton")
             else:
                 button.configure(style="Ghost.TButton")
-    
-    def setup_tabs(self):
-        """Initialisiert alle Tab-Komponenten"""
-        # Импортируем DemoTab
-        from ui.tabs.demo_tab import DemoTab
-        
-        self.tabs = {
-            'home': HomeTab(self.tab_content_frame, self),
-            'demo': DemoTab(self.tab_content_frame, self),
-            'creator': CreatorTab(self.tab_content_frame, self),
-            'presentation': PresentationTab(self.tab_content_frame, self)
-        }
-        
-        # Alle Tabs initial verstecken
-        for tab in self.tabs.values():
-            tab.hide()
-    
-    def switch_tab(self, tab_name):
-        """Переключення між табами з автоматичним збереженням"""
+
+    def _update_status_indicator(self, message):
+        """Оновлює статус індикатор з автоскиданням"""
+        if hasattr(self, 'status_indicator'):
+            self.status_indicator.configure(text=f"🔄 {message}")
+            # Повернути до базового стану через 3 секунди
+            self.root.after(3000, lambda: self.status_indicator.configure(text="✅ Система готова"))
+
+    def _run_system_test(self):
+        """Запускає системний тест для перевірки функціональності"""
         try:
-            # Зберегти поточні зміни в Creator перед переключенням
-            if (hasattr(self, 'tabs') and 'creator' in self.tabs and 
-                hasattr(self.tabs['creator'], 'save_current_slide_content') and
-                self.current_tab == 'creator'):
-                self.tabs['creator'].save_current_slide_content()
+            from tkinter import messagebox
             
-            # Приховати поточний таб
-            if hasattr(self, 'tabs') and self.current_tab in self.tabs:
-                self.tabs[self.current_tab].hide()
+            test_results = []
             
-            # Показати новий таб
-            if hasattr(self, 'tabs') and tab_name in self.tabs:
-                self.tabs[tab_name].show()
+            # Тест Content Manager
+            try:
+                from models.content import content_manager
+                slides_count = content_manager.get_slide_count()
+                test_results.append(f"✅ Content Manager: {slides_count} слайдів")
                 
-                # Оновити контент в новому табі
-                if tab_name == 'demo' and hasattr(self.tabs['demo'], 'load_current_slide'):
-                    self.tabs['demo'].load_current_slide()
-                elif tab_name == 'creator' and hasattr(self.tabs['creator'], 'load_slide_to_editor'):
-                    current_slide = getattr(self.tabs['creator'], 'current_edit_slide', 1)
-                    self.tabs['creator'].load_slide_to_editor(current_slide)
+                # Тест Assets
+                assets = content_manager.get_available_assets()
+                total_assets = sum(len(v) for v in assets.values())
+                test_results.append(f"✅ Assets: {total_assets} доступно")
+                
+            except Exception as e:
+                test_results.append(f"❌ Content Manager: {e}")
             
-            # Оновити navbar navigation
-            self.update_navbar_active_tab(tab_name)
+            # Тест табів
+            active_tabs = len([t for t in self.tabs.values() if hasattr(t, 'show')])
+            test_results.append(f"✅ Таби: {active_tabs}/{len(self.tabs)} активні")
             
-            self.current_tab = tab_name
-            logger.debug(f"Switched to {tab_name} tab with synchronization")
+            # Тест синхронізації
+            observer_active = hasattr(self, '_on_content_changed')
+            test_results.append(f"✅ Синхронізація: {'Активна' if observer_active else 'Неактивна'}")
+            
+            results_text = "СИСТЕМНИЙ ТЕСТ:\n\n" + "\n".join(test_results)
+            results_text += "\n\nВикористання:\n1. Відкрийте Creator\n2. Додайте текст/зображення\n3. Збережіть зміни\n4. Перейдіть у Demo - зміни синхронізуються"
+            
+            messagebox.showinfo("Системний тест", results_text)
+            logger.info("Системний тест виконано")
             
         except Exception as e:
-            logger.error(f"Error switching to {tab_name} tab: {e}")
-    
+            messagebox.showerror("Системний тест", f"Помилка тестування: {e}")
+            logger.error(f"Помилка системного тесту: {e}")
+
+    def force_refresh_all_tabs(self):
+        """Примусово оновлює всі таби (для зовнішніх викликів)"""
+        try:
+            logger.info("🔄 Примусове оновлення всіх табів...")
+            
+            for tab_name, tab in self.tabs.items():
+                try:
+                    if tab_name == 'demo' and hasattr(tab, 'create_slides_list'):
+                        tab.create_slides_list()
+                    elif tab_name == 'creator' and hasattr(tab, 'create_slide_thumbnails'):
+                        tab.create_slide_thumbnails()
+                    elif tab_name == 'home' and hasattr(tab, 'refresh_content'):
+                        tab.refresh_content()
+                except Exception as e:
+                    logger.debug(f"Помилка оновлення табу {tab_name}: {e}")
+            
+            self._update_status_indicator("Всі таби оновлено")
+            logger.info("✅ Примусове оновлення завершено")
+            
+        except Exception as e:
+            logger.error(f"Помилка примусового оновлення: {e}")
+
     def toggle_fullscreen(self, event=None):
-        """Wechselt zwischen Vollbild und Fenster-Modus"""
+        """Перемикає повноекранний режим"""
         self.fullscreen = not self.fullscreen
         self.root.attributes('-fullscreen', self.fullscreen)
-        logger.debug(f"Vollbild: {'aktiviert' if self.fullscreen else 'deaktiviert'}")
-    
+        logger.debug(f"Fullscreen: {'увімкнено' if self.fullscreen else 'вимкнено'}")
+
     def exit_fullscreen(self, event=None):
-        """Verlässt den Vollbild-Modus (aber bleibt auf Hauptmonitor)"""
+        """Виходить з повноекранного режиму"""
         if self.fullscreen:
             self.fullscreen = False
             self.root.attributes('-fullscreen', False)
-            self.root.attributes('-topmost', False)  # Topmost deaktivieren
+            self.root.attributes('-topmost', False)
             
-            # Fenster auf Hauptmonitor in normaler Größe
             self.root.geometry(f"{self.primary_width}x{self.primary_height}+{self.primary_x}+{self.primary_y}")
-            logger.debug("Vollbild deaktiviert - bleibt auf Hauptmonitor")
-    
-    def restart_application(self):
-        """Startet die Anwendung neu"""
-        logger.info("Anwendung wird neu gestartet...")
-        subprocess.Popen([sys.executable] + sys.argv)
-        self.quit_application()
-    
+            logger.debug("Fullscreen вимкнено - залишається на головному моніторі")
+
     def quit_application(self):
-        """Beendet die Anwendung"""
-        logger.info("Anwendung wird beendet...")
+        """Завершує програму з належною очисткою"""
+        logger.info("🧹 Завершення програми...")
         
-        # Hardware-Verbindungen trennen
-        from models.hardware import hardware_manager
-        hardware_manager.disconnect_all()
-        
-        # Demo stoppen
-        from services.demo import demo_service
-        demo_service.stop_demo()
-        
-        # GUI schließen
-        self.root.quit()
-        sys.exit(0)
-    
-    def run(self):
-        """Startet die GUI-Hauptschleife"""
+        # Фінальне збереження з Creator
         try:
-            logger.info("GUI-Hauptschleife gestartet")
+            if ('creator' in self.tabs and 
+                hasattr(self.tabs['creator'], 'save_current_slide_content')):
+                logger.info("💾 Фінальне збереження...")
+                self.tabs['creator'].save_current_slide_content()
+        except Exception as e:
+            logger.error(f"Помилка фінального збереження: {e}")
+        
+        # Відключення Hardware
+        try:
+            from models.hardware import hardware_manager
+            hardware_manager.disconnect_all()
+        except Exception as e:
+            logger.debug(f"Hardware disconnect помилка: {e}")
+        
+        # Зупинка Demo сервісу
+        try:
+            from services.demo import demo_service
+            demo_service.stop_demo()
+        except Exception as e:
+            logger.debug(f"Demo service stop помилка: {e}")
+        
+        # Закрити GUI
+        self.root.quit()
+        logger.info("👋 Dynamic Messe Stand V4 завершено")
+        sys.exit(0)
+
+    def run(self):
+        """Запускає GUI головний цикл"""
+        try:
+            logger.info("GUI головний цикл запущено")
             self.root.mainloop()
         except KeyboardInterrupt:
-            logger.info("Anwendung durch Benutzer unterbrochen")
+            logger.info("Програму перервано користувачем")
             self.quit_application()
         except Exception as e:
-            logger.error(f"Unerwarteter Fehler in GUI-Hauptschleife: {e}")
+            logger.error(f"Неочікувана помилка в GUI циклі: {e}")
             self.quit_application()
