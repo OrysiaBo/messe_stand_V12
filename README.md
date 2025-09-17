@@ -1,4 +1,4 @@
-messe stand V11 mann kann die bilder auswählen, aber garnichts speichern
+Zeigt nur weisser Bildschirm
 
 ## 🏗️ Projektstruktur
 ```
